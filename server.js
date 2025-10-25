@@ -18,64 +18,85 @@ pool.connect()
   .catch(err => console.error("❌ Database connection failed:", err.message));
 
 // =======================================
-// 🧩 OPRAVA STRUKTURY TABULEK
+// 🧩 AUTOMATICKÁ OPRAVA AUTO INCREMENT
 // =======================================
 (async () => {
   try {
     await pool.query(`
-      -- Upravíme tabulku warehouses
+      -- Sekvence pro warehouses
       DO $$
       BEGIN
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='warehouses' AND column_name='id') THEN
-          ALTER TABLE warehouses ALTER COLUMN id DROP DEFAULT;
+        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'warehouses_id_seq') THEN
+          CREATE SEQUENCE warehouses_id_seq START 1;
         END IF;
       END$$;
-
-      CREATE SEQUENCE IF NOT EXISTS warehouses_id_seq START 1;
       ALTER TABLE warehouses ALTER COLUMN id SET DEFAULT nextval('warehouses_id_seq');
 
-      -- Upravíme tabulku items
+      -- Sekvence pro items
       DO $$
       BEGIN
-        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='items' AND column_name='id') THEN
-          ALTER TABLE items ALTER COLUMN id DROP DEFAULT;
+        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'items_id_seq') THEN
+          CREATE SEQUENCE items_id_seq START 1;
         END IF;
       END$$;
-
-      CREATE SEQUENCE IF NOT EXISTS items_id_seq START 1;
       ALTER TABLE items ALTER COLUMN id SET DEFAULT nextval('items_id_seq');
     `);
-    console.log("✅ Opraveno: AUTO INCREMENT pro warehouses i items!");
+    console.log("✅ AUTO INCREMENT opraven pro warehouses a items!");
   } catch (err) {
-    console.error("❌ Chyba při opravě tabulek:", err.message);
+    console.error("❌ Chyba při nastavování sekvencí:", err.message);
   }
 })();
 
+// =======================================
+// 📦 ITEMS API
+// =======================================
 
-// Přidej položku
-app.post("/api/items", async (req, res) => {
-  const { name, qty, category, warehouse_id } = req.body;
+// Načti všechny položky podle ID skladu
+app.get("/api/items/:warehouseId", async (req, res) => {
   try {
+    const { warehouseId } = req.params;
     const result = await pool.query(
-      "INSERT INTO items (name, qty, category, warehouse_id, updated) VALUES ($1, $2, $3, $4, NOW()) RETURNING *",
-      [name, qty, category, warehouse_id]
+      "SELECT * FROM items WHERE warehouse_id = $1 ORDER BY id ASC",
+      [warehouseId]
     );
-    res.json(result.rows[0]);
+    res.json(result.rows || []);
   } catch (err) {
+    console.error("❌ Chyba při načítání položek:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Úprava množství položky
+// Přidej novou položku
+app.post("/api/items", async (req, res) => {
+  const { name, qty, category, warehouse_id } = req.body;
+  if (!name || !warehouse_id) {
+    return res.status(400).json({ error: "Chybí povinná data." });
+  }
+
+  try {
+    const result = await pool.query(
+      "INSERT INTO items (name, qty, category, warehouse_id, updated) VALUES ($1, $2, $3, $4, NOW()) RETURNING *",
+      [name, qty || 0, category || "", warehouse_id]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("❌ Chyba při přidávání položky:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Aktualizace množství položky
 app.put("/api/items/:id", async (req, res) => {
   const { qty } = req.body;
+  const { id } = req.params;
   try {
     const result = await pool.query(
       "UPDATE items SET qty = $1, updated = NOW() WHERE id = $2 RETURNING *",
-      [qty, req.params.id]
+      [qty, id]
     );
-    res.json(result.rows[0]);
+    res.json(result.rows[0] || {});
   } catch (err) {
+    console.error("❌ Chyba při úpravě množství:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -83,9 +104,11 @@ app.put("/api/items/:id", async (req, res) => {
 // Smazání položky
 app.delete("/api/items/:id", async (req, res) => {
   try {
-    await pool.query("DELETE FROM items WHERE id = $1", [req.params.id]);
+    const { id } = req.params;
+    await pool.query("DELETE FROM items WHERE id = $1", [id]);
     res.json({ success: true });
   } catch (err) {
+    console.error("❌ Chyba při mazání položky:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -98,8 +121,10 @@ app.delete("/api/items/:id", async (req, res) => {
 app.get("/api/warehouses", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM warehouses ORDER BY id ASC");
-    res.json(result.rows);
+    // vracíme pole i když je prázdné, aby frontend neměl undefined
+    res.json(result.rows || []);
   } catch (err) {
+    console.error("❌ Chyba při načítání skladů:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -107,13 +132,16 @@ app.get("/api/warehouses", async (req, res) => {
 // Přidání skladu
 app.post("/api/warehouses", async (req, res) => {
   const { name } = req.body;
+  if (!name) return res.status(400).json({ error: "Název skladu je povinný." });
+
   try {
     const result = await pool.query(
       "INSERT INTO warehouses (name) VALUES ($1) RETURNING *",
       [name]
     );
-    res.json(result.rows[0]);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
+    console.error("❌ Chyba při přidávání skladu:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -121,9 +149,11 @@ app.post("/api/warehouses", async (req, res) => {
 // Smazání skladu
 app.delete("/api/warehouses/:id", async (req, res) => {
   try {
-    await pool.query("DELETE FROM warehouses WHERE id = $1", [req.params.id]);
+    const { id } = req.params;
+    await pool.query("DELETE FROM warehouses WHERE id = $1", [id]);
     res.json({ success: true });
   } catch (err) {
+    console.error("❌ Chyba při mazání skladu:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
