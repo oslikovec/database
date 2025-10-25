@@ -14,38 +14,38 @@ const pool = new Pool({
 });
 
 pool.connect()
-  .then(() => console.log("✅ Connected to Railway PostgreSQL"))
+  .then(async () => {
+    console.log("✅ Connected to Railway PostgreSQL");
+
+    // ✅ Oprava sekvencí pro AUTO INCREMENT
+    try {
+      await pool.query(`
+        -- vytvoř sekvenci pokud chybí
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'warehouses_id_seq') THEN
+            CREATE SEQUENCE warehouses_id_seq START 1;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'items_id_seq') THEN
+            CREATE SEQUENCE items_id_seq START 1;
+          END IF;
+        END$$;
+
+        -- připoj sekvence ke sloupcům
+        ALTER TABLE warehouses ALTER COLUMN id SET DEFAULT nextval('warehouses_id_seq');
+        ALTER TABLE items ALTER COLUMN id SET DEFAULT nextval('items_id_seq');
+
+        -- ✅ synchronizuj sekvence s nejvyšším ID v tabulkách
+        SELECT setval('warehouses_id_seq', COALESCE((SELECT MAX(id) FROM warehouses), 0) + 1, false);
+        SELECT setval('items_id_seq', COALESCE((SELECT MAX(id) FROM items), 0) + 1, false);
+      `);
+      console.log("✅ AUTO INCREMENT sekvence opraveny a synchronizovány!");
+    } catch (err) {
+      console.error("❌ Chyba při opravě sekvencí:", err.message);
+    }
+  })
   .catch(err => console.error("❌ Database connection failed:", err.message));
 
-// =======================================
-// 🧩 AUTOMATICKÁ OPRAVA AUTO INCREMENT
-// =======================================
-(async () => {
-  try {
-    await pool.query(`
-      -- Sekvence pro warehouses
-      DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'warehouses_id_seq') THEN
-          CREATE SEQUENCE warehouses_id_seq START 1;
-        END IF;
-      END$$;
-      ALTER TABLE warehouses ALTER COLUMN id SET DEFAULT nextval('warehouses_id_seq');
-
-      -- Sekvence pro items
-      DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'items_id_seq') THEN
-          CREATE SEQUENCE items_id_seq START 1;
-        END IF;
-      END$$;
-      ALTER TABLE items ALTER COLUMN id SET DEFAULT nextval('items_id_seq');
-    `);
-    console.log("✅ AUTO INCREMENT opraven pro warehouses a items!");
-  } catch (err) {
-    console.error("❌ Chyba při nastavování sekvencí:", err.message);
-  }
-})();
 
 // =======================================
 // 📦 ITEMS API
