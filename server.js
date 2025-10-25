@@ -70,6 +70,21 @@ app.put("/api/items/:id", async (req, res) => {
   }
 });
 
+// ====== API pro SKLADY ======
+app.post("/api/warehouses", async (req, res) => {
+  const { name } = req.body;
+  try {
+    const result = await pool.query(
+      "INSERT INTO warehouses (name) VALUES ($1) RETURNING *",
+      [name]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // ====== Spuštění serveru ======
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server běží na portu ${PORT}`));
