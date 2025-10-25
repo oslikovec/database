@@ -17,7 +17,9 @@ pool.connect()
   .then(() => console.log("✅ Connected to Railway PostgreSQL"))
   .catch(err => console.error("❌ Database connection failed:", err.message));
 
-// ====== ROUTES ======
+// =======================================
+// 🧩 ITEMS API
+// =======================================
 
 // Načti všechny položky ze skladu podle ID skladu
 app.get("/api/items/:warehouseId", async (req, res) => {
@@ -46,16 +48,6 @@ app.post("/api/items", async (req, res) => {
   }
 });
 
-// Smazání položky
-app.delete("/api/items/:id", async (req, res) => {
-  try {
-    await pool.query("DELETE FROM items WHERE id = $1", [req.params.id]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Úprava množství položky
 app.put("/api/items/:id", async (req, res) => {
   const { qty } = req.body;
@@ -70,7 +62,19 @@ app.put("/api/items/:id", async (req, res) => {
   }
 });
 
-// ===== SKLADY =====
+// Smazání položky
+app.delete("/api/items/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM items WHERE id = $1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =======================================
+// 🏭 WAREHOUSES API
+// =======================================
 
 // Získání všech skladů
 app.get("/api/warehouses", async (req, res) => {
@@ -107,77 +111,7 @@ app.delete("/api/warehouses/:id", async (req, res) => {
 });
 
 // =======================================
-// 🏗️ SPRÁVA SKLADŮ (přidání / mazání)
+// 🚀 START SERVERU
 // =======================================
-
-async function loadWarehouses() {
-  try {
-    const res = await fetch(`${API_BASE}/warehouses`);
-    const data = await res.json();
-    const select = document.getElementById("deleteWarehouseSelect");
-    if (!select) return; // pokud nejsme ve správné sekci, ukonči
-    select.innerHTML = "";
-    data.forEach(w => {
-      const opt = document.createElement("option");
-      opt.value = w.id;
-      opt.textContent = w.name;
-      select.appendChild(opt);
-    });
-  } catch (err) {
-    console.error("❌ Chyba při načítání seznamu skladů:", err);
-  }
-}
-
-async function addWarehouse(name) {
-  try {
-    await fetch(`${API_BASE}/warehouses`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name })
-    });
-    alert("✅ Nový sklad vytvořen!");
-    loadWarehouses();
-  } catch (err) {
-    console.error("❌ Chyba při přidání skladu:", err);
-  }
-}
-
-async function deleteWarehouse(id) {
-  try {
-    await fetch(`${API_BASE}/warehouses/${id}`, { method: "DELETE" });
-    alert("🗑️ Sklad byl odstraněn!");
-    loadWarehouses();
-  } catch (err) {
-    console.error("❌ Chyba při mazání skladu:", err);
-  }
-}
-
-const addWarehouseForm = document.getElementById("addWarehouseForm");
-const deleteWarehouseForm = document.getElementById("deleteWarehouseForm");
-
-if (addWarehouseForm) {
-  addWarehouseForm.addEventListener("submit", e => {
-    e.preventDefault();
-    const name = document.getElementById("warehouseName").value.trim();
-    if (name) addWarehouse(name);
-    addWarehouseForm.reset();
-  });
-}
-
-if (deleteWarehouseForm) {
-  deleteWarehouseForm.addEventListener("submit", e => {
-    e.preventDefault();
-    const id = document.getElementById("deleteWarehouseSelect").value;
-    if (id && confirm("Opravdu chceš smazat tento sklad?")) {
-      deleteWarehouse(id);
-    }
-  });
-}
-
-// Načti seznam skladů po načtení celé stránky
-window.addEventListener("DOMContentLoaded", loadWarehouses);
-
-
-// ====== Spuštění serveru ======
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`🚀 Server běží na portu ${PORT}`));
