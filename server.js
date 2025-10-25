@@ -70,7 +70,19 @@ app.put("/api/items/:id", async (req, res) => {
   }
 });
 
-// ====== API pro SKLADY ======
+// ===== SKLADY =====
+
+// Získání všech skladů
+app.get("/api/warehouses", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM warehouses ORDER BY id ASC");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Přidání skladu
 app.post("/api/warehouses", async (req, res) => {
   const { name } = req.body;
   try {
@@ -83,6 +95,17 @@ app.post("/api/warehouses", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Smazání skladu
+app.delete("/api/warehouses/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM warehouses WHERE id = $1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 
 // ====== Spuštění serveru ======
