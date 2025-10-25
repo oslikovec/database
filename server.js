@@ -18,6 +18,38 @@ pool.connect()
   .catch(err => console.error("❌ Database connection failed:", err.message));
 
 // =======================================
+// 🧩 AUTOMATICKÁ OPRAVA SEKVENCÍ (AUTO ID)
+// =======================================
+(async () => {
+  try {
+    await pool.query(`
+      -- Pokud sekvence pro sklady neexistuje, vytvoř ji
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'warehouses_id_seq') THEN
+          CREATE SEQUENCE warehouses_id_seq START 1;
+        END IF;
+      END$$;
+
+      ALTER TABLE warehouses ALTER COLUMN id SET DEFAULT nextval('warehouses_id_seq');
+
+      -- Pokud sekvence pro položky neexistuje, vytvoř ji
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'items_id_seq') THEN
+          CREATE SEQUENCE items_id_seq START 1;
+        END IF;
+      END$$;
+
+      ALTER TABLE items ALTER COLUMN id SET DEFAULT nextval('items_id_seq');
+    `);
+    console.log("✅ AUTO INCREMENT opraven pro tabulky warehouses a items!");
+  } catch (err) {
+    console.error("❌ Chyba při nastavování sekvencí:", err.message);
+  }
+})();
+
+// =======================================
 // 🧩 ITEMS API
 // =======================================
 
