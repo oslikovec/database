@@ -56,6 +56,20 @@ app.delete("/api/items/:id", async (req, res) => {
   }
 });
 
+// Úprava množství položky
+app.put("/api/items/:id", async (req, res) => {
+  const { qty } = req.body;
+  try {
+    const result = await pool.query(
+      "UPDATE items SET qty = $1, updated = NOW() WHERE id = $2 RETURNING *",
+      [qty, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ====== Spuštění serveru ======
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server běží na portu ${PORT}`));
