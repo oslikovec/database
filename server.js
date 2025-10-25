@@ -18,53 +18,39 @@ pool.connect()
   .catch(err => console.error("❌ Database connection failed:", err.message));
 
 // =======================================
-// 🧩 AUTOMATICKÁ OPRAVA SEKVENCÍ (AUTO ID)
+// 🧩 OPRAVA STRUKTURY TABULEK
 // =======================================
 (async () => {
   try {
     await pool.query(`
-      -- Pokud sekvence pro sklady neexistuje, vytvoř ji
+      -- Upravíme tabulku warehouses
       DO $$
       BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'warehouses_id_seq') THEN
-          CREATE SEQUENCE warehouses_id_seq START 1;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='warehouses' AND column_name='id') THEN
+          ALTER TABLE warehouses ALTER COLUMN id DROP DEFAULT;
         END IF;
       END$$;
 
+      CREATE SEQUENCE IF NOT EXISTS warehouses_id_seq START 1;
       ALTER TABLE warehouses ALTER COLUMN id SET DEFAULT nextval('warehouses_id_seq');
 
-      -- Pokud sekvence pro položky neexistuje, vytvoř ji
+      -- Upravíme tabulku items
       DO $$
       BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'items_id_seq') THEN
-          CREATE SEQUENCE items_id_seq START 1;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='items' AND column_name='id') THEN
+          ALTER TABLE items ALTER COLUMN id DROP DEFAULT;
         END IF;
       END$$;
 
+      CREATE SEQUENCE IF NOT EXISTS items_id_seq START 1;
       ALTER TABLE items ALTER COLUMN id SET DEFAULT nextval('items_id_seq');
     `);
-    console.log("✅ AUTO INCREMENT opraven pro tabulky warehouses a items!");
+    console.log("✅ Opraveno: AUTO INCREMENT pro warehouses i items!");
   } catch (err) {
-    console.error("❌ Chyba při nastavování sekvencí:", err.message);
+    console.error("❌ Chyba při opravě tabulek:", err.message);
   }
 })();
 
-// =======================================
-// 🧩 ITEMS API
-// =======================================
-
-// Načti všechny položky ze skladu podle ID skladu
-app.get("/api/items/:warehouseId", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT * FROM items WHERE warehouse_id = $1 ORDER BY id ASC",
-      [req.params.warehouseId]
-    );
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // Přidej položku
 app.post("/api/items", async (req, res) => {
