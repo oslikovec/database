@@ -9,7 +9,7 @@ app.use(express.json());
 
 // ====== PostgreSQL připojení ======
 const pool = new Pool({
-  connectionString: "postgresql://postgres:KtSpuQhMmxJzsnLScblYoMQBZNRPpvbD@gondola.proxy.rlwy.net:19093/railway",
+  connectionString: "postgresql://postgres:koMYKonJqJiqHqkKCTsBujrLuovgNnZy@yamabiko.proxy.rlwy.net:48234/railway",
   ssl: { rejectUnauthorized: false },
 });
 
